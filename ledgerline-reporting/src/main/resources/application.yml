@@ -1,0 +1,11 @@
+server:
+  port: ${SERVER_PORT:8086}
+spring:
+  application:
+    name: ledgerline-reporting
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/ledgerline_java}
+    username: ${DB_USER:ledgerline_ai_readonly}
+    password: ${DB_PASSWORD:ledgerline_readonly}
+    hikari:
+      read-only: true

@@ -1,0 +1,20 @@
+server:
+  port: ${SERVER_PORT:8001}
+
+spring:
+  application:
+    name: ledgerline-raft
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+    deserialization:
+      accept-float-as-int: false
+
+logging:
+  level:
+    org.apache.ratis: WARN
+
+ledger:
+  node-id: ${LEDGER_NODE_ID:n1}
+  raft-address: ${LEDGER_RAFT_ADDRESS:localhost:7001}
+  peers: ${LEDGER_PEERS:n1=localhost:7001}
+  storage-dir: ${LEDGER_STORAGE_DIR:./data/n1}

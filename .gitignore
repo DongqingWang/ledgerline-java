@@ -1,0 +1,73 @@
+# Maven build outputs and compiled Java artifacts
+**/target/
+*.class
+*.jar
+*.war
+*.ear
+# Keep the Maven Wrapper usable if it is added later.
+!/.mvn/wrapper/maven-wrapper.jar
+
+# Local runtime state: Raft logs/snapshots, private demo databases,
+# copied demo jars, and Docker/demo diagnostics
+/.run/
+/data/
+/ledgerline-*/data/
+
+# Local report exports (keep report fixtures under src/test/resources tracked)
+/reports/
+/exports/
+
+# Logs, JVM crash dumps, heap dumps, and profiling recordings
+*.log
+*.log.*
+hs_err_pid*
+replay_pid*
+*.hprof
+*.jfr
+
+# Local environment variables and credentials; retain shareable examples
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+/secrets/
+/credentials/
+*.key
+*-key.pem
+*_key.pem
+*.p12
+*.pfx
+*.jks
+*.keystore
+
+# IDE/editor metadata and temporary files
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+.factorypath
+*.swp
+*.swo
+*~
+
+# Python demo/test tooling
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Browser test artifacts
+.playwright-cli/
+playwright-report/
+test-results/
+
+# OS metadata
+.DS_Store
+._*
+.AppleDouble/
+Thumbs.db
+Desktop.ini

@@ -1,0 +1,5 @@
+.git
+**/target
+.run
+data
+.DS_Store

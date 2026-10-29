@@ -1,0 +1,11 @@
+server:
+  port: ${SERVER_PORT:8083}
+spring:
+  application:
+    name: ledgerline-fx
+ledger:
+  fx:
+    refresh-enabled: ${FX_REFRESH_ENABLED:false}
+    refresh-interval: ${FX_REFRESH_INTERVAL:15m}
+    refresh-endpoint: ${FX_REFRESH_ENDPOINT:https://open.er-api.com/v6/latest/USD}
+    refresh-timeout: ${FX_REFRESH_TIMEOUT:10s}

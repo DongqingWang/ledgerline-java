@@ -1,0 +1,5 @@
+server:
+  port: ${SERVER_PORT:5180}
+spring:
+  application:
+    name: ledgerline-admin-console

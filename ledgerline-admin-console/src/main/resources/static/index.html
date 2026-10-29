@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ledgerline · Java</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+<header><div class="mark">L</div><div><h1>Ledgerline</h1><p>Distributed ledger · Java / Apache Ratis</p></div><span class="badge">LOCAL DEMO</span></header>
+<main>
+  <section class="wide"><div class="heading"><h2>Account balances</h2><button id="refresh">Refresh</button></div><p class="muted">Committed events → CQRS projection · <span id="index">Waiting for events</span></p>
+  <table><thead><tr><th>Account</th><th>Currency</th><th>Balance (minor units)</th><th>Raft index</th></tr></thead><tbody id="balances"></tbody></table><p id="read-error" role="status"></p></section>
+  <section><h2>Post a transfer</h2><p class="muted">Classified, balanced, and replicated.</p>
+    <form id="transfer">
+      <label>From account<input name="from_account" value="alice" required></label>
+      <label>To account<input name="to_account" value="bob" required></label>
+      <div class="pair"><label>Amount (minor units)<input name="amount_minor" type="number" min="1" step="1" value="1000" required></label><label>Fee (minor units)<input name="fee_minor" type="number" min="0" step="1" value="0" required></label></div>
+      <div class="pair"><label>Currency<input name="currency" value="USD" required></label><label>Country<input name="country" value="US" required></label></div>
+      <label>Category<select name="category"><option>seller_payout</option><option>refund</option><option>other</option></select></label>
+      <label>Idempotency key<input name="dedup_id" id="dedup" required></label><button type="submit" class="primary">Submit transfer</button>
+    </form><pre id="transfer-result" role="status">Ready. Accounts must already exist.</pre>
+  </section>
+  <section><h2>FX conversion</h2><p class="muted">Static demo rates · integer minor-unit rounding</p>
+    <form id="fx"><div class="pair"><label>Base<input name="base" value="USD" required></label><label>Quote<input name="quote" value="EUR" required></label></div><label>Amount (minor units)<input name="amount_minor" type="number" step="1" value="10000" required></label><button type="submit">Convert</button></form><pre id="fx-result" role="status">No conversion yet.</pre>
+    <h2 class="secondary-heading">Service endpoints</h2><p class="muted">Gateway :8080 · Accounting :8081<br>Balances :8082 · FX :8083<br>Reporting :8086 · MCP :8087</p>
+    <p class="notice">Demo only. No authentication. Fee legs are independent commits, not an atomic multi-leg journal.</p>
+  </section>
+</main>
+<footer>Exact integer balances. Double-entry by construction. Read paths kept separate.</footer>
+</body>
+</html>

@@ -1,0 +1,11 @@
+server:
+  port: ${SERVER_PORT:8084}
+spring:
+  application:
+    name: ledgerline-persistence-sync
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/ledgerline_java}
+    username: ${DB_USER:ledgerline}
+    password: ${DB_PASSWORD:ledgerline}
+ledger:
+  nodes: ${LEDGER_NODES:http://localhost:8001}

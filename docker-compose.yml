@@ -1,0 +1,91 @@
+name: ledgerline-java
+x-raft-env: &raft-env
+  LEDGER_PEERS: n1=raft-n1:7001,n2=raft-n2:7001,n3=raft-n3:7001
+  LEDGER_RAFT_ADDRESS: 0.0.0.0:7001
+  LEDGER_STORAGE_DIR: /app/data
+  SERVER_PORT: 8001
+  HEALTHCHECK_PATH: /v1/healthz
+x-clients: &clients
+  LEDGER_NODES: http://raft-n1:8001,http://raft-n2:8001,http://raft-n3:8001
+x-db: &db
+  DB_URL: jdbc:postgresql://postgres:5432/ledgerline_java
+  DB_USER: ledgerline_ai_readonly
+  DB_PASSWORD: ledgerline_readonly
+services:
+  raft-n1:
+    build: {context: ., args: {MODULE: ledgerline-raft}}
+    environment: {<<: *raft-env, LEDGER_NODE_ID: n1}
+    ports: ["127.0.0.1:8001:8001"]
+    volumes: [raft-n1:/app/data]
+  raft-n2:
+    build: {context: ., args: {MODULE: ledgerline-raft}}
+    environment: {<<: *raft-env, LEDGER_NODE_ID: n2}
+    ports: ["127.0.0.1:8002:8001"]
+    volumes: [raft-n2:/app/data]
+  raft-n3:
+    build: {context: ., args: {MODULE: ledgerline-raft}}
+    environment: {<<: *raft-env, LEDGER_NODE_ID: n3}
+    ports: ["127.0.0.1:8003:8001"]
+    volumes: [raft-n3:/app/data]
+  accounting:
+    build: {context: ., args: {MODULE: ledgerline-accounting-core}}
+    environment: {SERVER_PORT: 8081}
+    ports: ["127.0.0.1:8081:8081"]
+  gateway:
+    build: {context: ., args: {MODULE: ledgerline-gateway}}
+    environment: {<<: *clients, ACCOUNTING_URL: "http://accounting:8081", SERVER_PORT: 8080}
+    ports: ["127.0.0.1:8080:8080"]
+    depends_on: [raft-n1, raft-n2, raft-n3, accounting]
+  balance-reader:
+    build: {context: ., args: {MODULE: ledgerline-balance-reader}}
+    environment: {<<: *clients, SERVER_PORT: 8082}
+    ports: ["127.0.0.1:8082:8082"]
+    depends_on: [raft-n1, raft-n2, raft-n3]
+  fx:
+    build: {context: ., args: {MODULE: ledgerline-fx}}
+    environment:
+      SERVER_PORT: 8083
+      FX_REFRESH_ENABLED: ${FX_REFRESH_ENABLED:-false}
+      FX_REFRESH_INTERVAL: ${FX_REFRESH_INTERVAL:-15m}
+      FX_REFRESH_ENDPOINT: ${FX_REFRESH_ENDPOINT:-https://open.er-api.com/v6/latest/USD}
+      FX_REFRESH_TIMEOUT: ${FX_REFRESH_TIMEOUT:-10s}
+    ports: ["127.0.0.1:8083:8083"]
+  postgres:
+    image: postgres:17-alpine
+    environment: {POSTGRES_DB: ledgerline_java, POSTGRES_USER: ledgerline, POSTGRES_PASSWORD: ledgerline}
+    volumes: [postgres:/var/lib/postgresql/data, "./postgres-init:/docker-entrypoint-initdb.d:ro"]
+    ports: ["127.0.0.1:55432:5432"]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U ledgerline -d ledgerline_java"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  persistence-sync:
+    build: {context: ., args: {MODULE: ledgerline-persistence-sync}}
+    environment: {<<: [*clients, *db], DB_USER: ledgerline, DB_PASSWORD: ledgerline, SERVER_PORT: 8084}
+    ports: ["127.0.0.1:8084:8084"]
+    depends_on:
+      postgres: {condition: service_healthy}
+  orchestrator:
+    build: {context: ., args: {MODULE: ledgerline-orchestrator}}
+    environment: {<<: *clients, SERVER_PORT: 8085}
+    ports: ["127.0.0.1:8085:8085"]
+  reporting:
+    build: {context: ., args: {MODULE: ledgerline-reporting}}
+    environment: {<<: *db, SERVER_PORT: 8086}
+    ports: ["127.0.0.1:8086:8086"]
+    depends_on: {postgres: {condition: service_healthy}, persistence-sync: {condition: service_started}}
+  ai-gateway:
+    build: {context: ., args: {MODULE: ledgerline-ai-gateway}}
+    environment: {<<: *db, SERVER_ADDRESS: 0.0.0.0, SERVER_PORT: 8087, REDACTION_POLICY: "${REDACTION_POLICY:-classpath:redaction.yaml}"}
+    ports: ["127.0.0.1:8087:8087"]
+    depends_on: {postgres: {condition: service_healthy}, persistence-sync: {condition: service_started}}
+  admin-console:
+    build: {context: ., args: {MODULE: ledgerline-admin-console}}
+    environment: {SERVER_PORT: 5180}
+    ports: ["127.0.0.1:5180:5180"]
+volumes:
+  raft-n1:
+  raft-n2:
+  raft-n3:
+  postgres:

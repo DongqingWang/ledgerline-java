@@ -1,0 +1,17 @@
+# Partial custom files overlay these defaults. Invalid files fail startup.
+# action: none (pass through), redact (omit), mask (obscure a prefix/suffix).
+# Without an action, internal_sensitive defaults to redact, public to none.
+fields:
+  cost_center:
+    classification: internal_sensitive
+    action: redact
+  transfer_dedup_id:
+    classification: internal_sensitive
+    action: mask
+  account_id: {classification: public, action: none}
+  currency: {classification: public, action: none}
+  balance_minor: {classification: public, action: none}
+  direction: {classification: public, action: none}
+  amount_minor: {classification: public, action: none}
+  gl_account: {classification: public, action: none}
+  posted_at: {classification: public, action: none}

@@ -1,0 +1,7 @@
+server:
+  port: ${SERVER_PORT:8085}
+spring:
+  application:
+    name: ledgerline-orchestrator
+ledger:
+  nodes: ${LEDGER_NODES:http://localhost:8001}

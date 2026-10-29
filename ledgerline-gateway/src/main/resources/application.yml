@@ -1,0 +1,8 @@
+server:
+  port: ${SERVER_PORT:8080}
+spring:
+  application:
+    name: ledgerline-gateway
+ledger:
+  nodes: ${LEDGER_NODES:http://localhost:8001}
+  accounting-url: ${ACCOUNTING_URL:http://localhost:8081}
