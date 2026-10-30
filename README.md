@@ -116,19 +116,19 @@ volumes or unrelated images. After resolving the space issue, retry with
 
 ## Modules and endpoints
 
-| Module | Default HTTP port | Main endpoints |
-|---|---:|---|
-| `ledgerline-common` | — | Shared HTTP, accounting contracts, event consumer |
-| `ledgerline-raft` | 8001 (8002/8003 in demo) | `POST /v1/accounts`, `GET /v1/accounts/{id}`, `POST /v1/transfers`, `GET /v1/leader`, `GET /v1/healthz`, `GET /v1/events/stream?from_index=0`, `GET /v1/events` |
-| `ledgerline-accounting-core` | 8081 | `POST /v1/compose` |
-| `ledgerline-gateway` | 8080 | `POST /v1/transfers`, `POST /v1/accounts`, `GET /v1/accounts/{id}` |
-| `ledgerline-balance-reader` | 8082 | `GET /v1/balances`, `GET /v1/balances/{id}` |
-| `ledgerline-persistence-sync` | 8084 | Event → transactional Postgres projection |
-| `ledgerline-fx` | 8083 | `GET /v1/rates/{base}/{quote}`, `POST /v1/convert` |
-| `ledgerline-orchestrator` | 8085 | `GET /v1/routing`, `POST /v1/split` |
-| `ledgerline-reporting` | 8086 | `GET /v1/reports/trial-balance`, CLI `--report` |
-| `ledgerline-ai-gateway` | 8087 | MCP JSON-RPC `POST /mcp` |
-| `ledgerline-admin-console` | 5180 | Browser UI at `/` |
+| Module | Role | Default HTTP port | Main endpoints |
+|---|---|---:|---|
+| `ledgerline-common` | Shared HTTP client, accounting contracts, and event-consumer code used by every other module; not a standalone service. | — | — |
+| `ledgerline-raft` | The core: a Ratis-replicated, event-sourced ledger engine. Idempotent transfers, double-entry by construction, a committed SSE event stream for CQRS fan-out. | 8001 (8002/8003 in demo) | `POST /v1/accounts`, `GET /v1/accounts/{id}`, `POST /v1/transfers`, `GET /v1/leader`, `GET /v1/healthz`, `GET /v1/events/stream?from_index=0`, `GET /v1/events` |
+| `ledgerline-accounting-core` | Double-entry journal composer + GL-dimension rule engine. Classifies a transfer's business context into a balanced, GL-tagged journal before it's submitted to the ledger. | 8081 | `POST /v1/compose` |
+| `ledgerline-gateway` | Client-facing REST API. HTTP failover/leader routing into the Raft cluster, composes journals via accounting-core first. | 8080 | `POST /v1/transfers`, `POST /v1/accounts`, `GET /v1/accounts/{id}` |
+| `ledgerline-balance-reader` | Fast CQRS read path: tails the committed event stream into an in-memory cache instead of querying the engine on every read. | 8082 | `GET /v1/balances`, `GET /v1/balances/{id}` |
+| `ledgerline-persistence-sync` | Projects committed events into durable Postgres tables, one transaction per batch — the queryable system of record for reporting/reconciliation. | 8084 | Event → transactional Postgres projection |
+| `ledgerline-fx` | Independent FX rate service: static seed rates + optional live refresh, cross-rate derivation, conversion. | 8083 | `GET /v1/rates/{base}/{quote}`, `POST /v1/convert` |
+| `ledgerline-orchestrator` | Demo shard-split controller: FNV-1a routing table + an offline split operation that replays history into a new cluster and swaps routing. | 8085 | `GET /v1/routing`, `POST /v1/split` |
+| `ledgerline-reporting` | Trial balance / reconciliation batch CLI and HTTP endpoint reading the Postgres projection, with date filtering and json/csv/table output. | 8086 | `GET /v1/reports/trial-balance`, CLI `--report` |
+| `ledgerline-ai-gateway` | An MCP server (stateless Streamable HTTP) exposing read-only ledger-query tools to AI agents, with YAML-driven field redaction, a least-privilege DB role, and audit logging. | 8087 | MCP JSON-RPC `POST /mcp` |
+| `ledgerline-admin-console` | A small local demo web UI (static HTML/CSS/JS served by Spring Boot): balances, a transfer form, FX rates. | 5180 | Browser UI at `/` |
 
 Every non-Raft service also has `GET /healthz`. These endpoints indicate process
 liveness (and projection cursor where available), not a quorum/readiness or
@@ -137,13 +137,58 @@ point is used for balances. Fractional minor-unit inputs are rejected rather tha
 truncated. JSON fields are `snake_case`. The demo browser uses JavaScript numbers;
 use a 64-bit-safe API client for amounts outside JavaScript's safe integer range.
 
-```text
-gateway → accounting (classify + balance journal) → Ratis (majority commit)
-                                                     ↓ committed SSE events
-                                     balance-reader     persistence-sync → Postgres
-                                                                                ↓
-                                                                  reporting + read-only MCP
+```mermaid
+flowchart TB
+    subgraph write_path["Write Path"]
+        GW["ledgerline-gateway<br/>(HTTP failover + leader routing)"]
+        ACC["ledgerline-accounting-core<br/>(journal composition)"]
+        RAFT["ledgerline-raft<br/>3-node Ratis cluster<br/>(event-sourced, Raft-replicated)"]
+        GW -->|compose journal| ACC
+        GW -->|submit transfer| RAFT
+    end
+
+    subgraph read_paths["Read Paths (CQRS fan-out from committed SSE events)"]
+        BR["ledgerline-balance-reader<br/>(in-memory cache)"]
+        PS["ledgerline-persistence-sync<br/>(durable Postgres projection)"]
+        RAFT -->|SSE event stream| BR
+        RAFT -->|SSE event stream| PS
+    end
+
+    subgraph downstream_postgres["Downstream of Postgres"]
+        RPT["ledgerline-reporting<br/>(trial balance + reconciliation)"]
+        AI["ledgerline-ai-gateway<br/>(MCP over HTTP, redacted, least-privilege)"]
+        PG[(Postgres)]
+        PS --> PG
+        PG --> RPT
+        PG --> AI
+    end
+
+    FX["ledgerline-fx<br/>(independent)"]
+    ORCH["ledgerline-orchestrator<br/>(shard routing + split)"]
+    UI["ledgerline-admin-console<br/>(browser)"]
+
+    UI -->|transfers| GW
+    UI -->|balances| BR
+    UI -->|rates| FX
+    ORCH -.->|admin ops on| RAFT
 ```
+
+`ledgerline-common` underlies every service in the diagram above (shared HTTP
+client, accounting contracts, event-consumer code); it has no port of its own
+and isn't a node in the data flow.
+
+**Data flow for a transfer**: a client calls `ledgerline-gateway`, which asks
+`ledgerline-accounting-core` to classify the transfer into a balanced,
+GL-tagged journal, then submits it to `ledgerline-raft` as one or two
+idempotent transfer commands (two, if there's a fee split — see "Correctness
+boundaries" below). The Raft leader commits it via Ratis, applies it to the
+state machine, and emits it on the committed SSE event stream.
+`ledgerline-balance-reader` and `ledgerline-persistence-sync` both tail that
+same stream independently — one for fast in-memory reads, one for a durable,
+queryable Postgres projection. `ledgerline-reporting` and `ledgerline-ai-gateway`
+both read from that Postgres projection, never from the engine directly, so
+analytics and AI-agent access are strictly read-path concerns that can never
+compete with or block the operational write path.
 
 ### Example requests
 
